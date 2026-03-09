@@ -4,7 +4,7 @@
 
 - macOS desktop session
 - `tmux`, `wezterm`, and `swiftc` installed
-- Screen Recording permission granted to the terminal app that runs the server
+- Screen Recording permission granted to the app that launches the server process
 
 ## Setup commands
 
@@ -19,17 +19,23 @@ npm test
 
 ## Start the server
 
-In one terminal:
+`tui-pilot` uses stdio transport. For a real MCP check, configure your MCP client to spawn one of these commands as the server process:
 
 ```bash
 npm run dev
 ```
 
-Leave that process running. It speaks MCP over stdio.
+or:
+
+```bash
+node dist/index.js
+```
+
+Do not launch the server in a separate terminal and then try to connect to it later. The MCP client needs to own the stdio pipes.
 
 ## Live verification flow
 
-Use any MCP client that can talk to a stdio server. Then run this sequence.
+Use any MCP client that can spawn a stdio server process. Then run this sequence.
 
 ### 1. Start the fixture
 
@@ -65,7 +71,7 @@ Confirm:
 
 - `textView.plainText` contains `Alpha`, `Bravo`, and `Charlie`
 - `textView.ansiText` shows reverse-video selection for `Alpha`
-- `visual.imageArtifactId` points to a PNG under `.tui-pilot/artifacts/`
+- `visual.imageArtifactId` is a local PNG path under `.tui-pilot/artifacts/`
 - the PNG looks the same as the live WezTerm window
 
 ### 3. Move the selection
@@ -102,6 +108,6 @@ Confirm the tmux session is gone and the WezTerm window closes or becomes detach
 ## Troubleshooting
 
 - `missing required tools`: install `tmux`, `wezterm`, or `swiftc`
-- `operation not permitted` / `screen recording`: grant Screen Recording permission to the terminal app running the server
+- `operation not permitted` / `screen recording`: grant Screen Recording permission to the app that launched the server process
 - `unable to read window list`: make sure the test is running inside a real macOS GUI session
 - `no matching window found`: check that WezTerm launched and stayed open long enough to be discovered

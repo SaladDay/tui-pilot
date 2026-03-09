@@ -9,7 +9,7 @@ description: Use when validating a terminal UI on macOS and you need real screen
 
 `tui-pilot` is for real TUI inspection, not ANSI image synthesis.
 
-Treat the live WezTerm window and the PNG returned by `tui_snapshot` as the visual source of truth. Treat `textView.plainText` and `textView.ansiText` as supporting evidence for selection state, text content, and fast debugging.
+Treat the live WezTerm window and the local PNG file referenced by `visual.imageArtifactId` as the visual source of truth. Treat `textView.plainText` and `textView.ansiText` as supporting evidence for selection state, text content, and fast debugging.
 
 The stack is split on purpose:
 
@@ -28,14 +28,14 @@ The stack is split on purpose:
 
 - macOS GUI session, not a headless shell
 - `tmux`, `wezterm`, and `swiftc` installed
-- Screen Recording granted to the terminal app that starts the MCP server
-- server started with `npm run dev` or `node dist/index.js`
+- Screen Recording granted to the app that starts the MCP server
+- your MCP client configured to spawn `npm run dev` or `node dist/index.js`
 
-If screen capture fails, check permissions on Terminal or iTerm first. Giving permission to WezTerm alone is often not enough.
+If screen capture fails, check permissions on the app that launched the server process first. That may be Terminal, iTerm, or a desktop MCP client. Giving permission to WezTerm alone is often not enough.
 
 ## Core Flow
 
-1. Start the server.
+1. Configure your MCP client to start the server over stdio.
 2. Call `tui_start` with `cwd`, `command`, `cols`, and `rows`.
 3. Confirm a real WezTerm window opened.
 4. Call `tui_snapshot` and inspect both text and PNG.
@@ -65,7 +65,7 @@ Expected first-state checks:
 - the live WezTerm window shows `Mini TUI Pilot`
 - `Alpha`, `Bravo`, and `Charlie` are visible
 - `Alpha` is selected
-- `visual.imageArtifactId` points to a PNG under `.tui-pilot/artifacts/`
+- `visual.imageArtifactId` is a local PNG path under `.tui-pilot/artifacts/`
 
 Then send:
 
@@ -80,7 +80,7 @@ After the second snapshot, `Bravo` should be selected and the PNG should differ 
 
 ## What to Compare
 
-- Live WezTerm window vs `visual.imageArtifactId`
+- Live WezTerm window vs the PNG at `visual.imageArtifactId`
 - Selected label in `textView.ansiText`
 - Text presence in `textView.plainText`
 - `screen.screenHash` before and after interaction
@@ -91,7 +91,7 @@ If only the text changed but the PNG did not, treat that as a visual-path proble
 ## Troubleshooting
 
 - `missing required tools`: install `tmux`, `wezterm`, or `swiftc`
-- `operation not permitted` or `screen recording`: grant Screen Recording to the terminal app running the server
+- `operation not permitted` or `screen recording`: grant Screen Recording to the app running the server process
 - `unable to read window list`: run inside a real macOS desktop session
 - `no matching window found`: WezTerm may not have opened, may have exited early, or window discovery may be pointed at the wrong process
 - `wezterm launch did not provide a pid`: treat this as a startup bug or regression, not an environment-only skip
