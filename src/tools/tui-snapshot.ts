@@ -4,7 +4,8 @@ import { mkdir } from 'node:fs/promises'
 
 import { z } from 'zod'
 
-import { captureWindow, discoverWeztermWindow } from '../controllers/macos-window.js'
+import { captureWindow, discoverTerminalWindow } from '../controllers/macos-window.js'
+import { getTerminalBackendDefinition } from '../controllers/wezterm.js'
 import { readPngSize } from '../lib/png.js'
 import { captureAnsi, capturePlain } from '../controllers/tmux.js'
 import type { SessionRecord, WindowBounds } from '../lib/types.js'
@@ -81,7 +82,11 @@ export function createTuiSnapshotTool(store: SessionStore) {
       let bounds = resolveWindowBounds(session)
 
       if (terminalPid !== null) {
-        const refreshedWindow = await discoverWeztermWindow({ pid: terminalPid })
+        const terminalInfo = getTerminalBackendDefinition(session.terminalBackend)
+        const refreshedWindow = await discoverTerminalWindow({
+          ownerName: terminalInfo.ownerName,
+          pid: terminalPid,
+        })
 
         terminalWindowId = refreshedWindow.windowId
         terminalPid = refreshedWindow.pid

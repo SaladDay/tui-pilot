@@ -25,6 +25,18 @@ describe('wezterm controller', () => {
     ])
   })
 
+  it('builds Ghostty args that attach tmux to the target session', async () => {
+    const { buildTerminalLaunchArgs } = await import('../../src/controllers/wezterm.js')
+
+    expect(buildTerminalLaunchArgs('ghostty', 'pilot-1')).toEqual([
+      '-e',
+      'tmux',
+      'attach',
+      '-t',
+      'pilot-1',
+    ])
+  })
+
   it('launches wezterm in a detached process for the target session and unreferences it', async () => {
     const { launchWezterm } = await import('../../src/controllers/wezterm.js')
     const unref = vi.fn()
@@ -44,6 +56,35 @@ describe('wezterm controller', () => {
     expect(execaMock).toHaveBeenCalledWith(
       'wezterm',
       ['start', '--always-new-process', '--', 'tmux', 'attach', '-t', 'pilot-2'],
+      {
+        detached: true,
+        stdio: 'ignore',
+      },
+    )
+    expect(catchMock).toHaveBeenCalledTimes(1)
+    await expect(catchMock.mock.results[0]?.value).resolves.toBeUndefined()
+    expect(unref).toHaveBeenCalledTimes(1)
+  })
+
+  it('launches Ghostty in a detached process for the target session and unreferences it', async () => {
+    const { launchTerminal } = await import('../../src/controllers/wezterm.js')
+    const unref = vi.fn()
+    const rejection = new Error('ghostty failed to launch')
+    const catchMock = vi.fn((onRejected: (error: unknown) => undefined) =>
+      Promise.reject(rejection).catch(onRejected),
+    )
+
+    execaMock.mockReturnValue({
+      catch: catchMock,
+      pid: 5151,
+      unref,
+    })
+
+    expect(launchTerminal('ghostty', 'pilot-3')).toEqual({ pid: 5151 })
+
+    expect(execaMock).toHaveBeenCalledWith(
+      'ghostty',
+      ['-e', 'tmux', 'attach', '-t', 'pilot-3'],
       {
         detached: true,
         stdio: 'ignore',

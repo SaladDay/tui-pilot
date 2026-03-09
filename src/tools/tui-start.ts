@@ -3,12 +3,18 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 
 import {
-  discoverWeztermWindow,
+  discoverTerminalWindow,
   buildWindowHelper,
   type WindowHelperResult,
 } from '../controllers/macos-window.js'
-import { launchWezterm } from '../controllers/wezterm.js'
+import { getTerminalBackendDefinition, launchTerminal } from '../controllers/wezterm.js'
 import { killSession, startSession } from '../controllers/tmux.js'
+import {
+  getTerminalBackendPath,
+  parseTerminalBackendPreference,
+  probeRuntimeDependencies,
+  resolveTerminalBackend,
+} from '../lib/env.js'
 import type { SessionRecord } from '../lib/types.js'
 
 const inputSchema = z.object({
@@ -55,12 +61,12 @@ async function cleanupFailedStart(tmuxSession: string, terminalPid: number | und
   }
 }
 
-async function discoverWindowWithRetry(terminalPid: number): Promise<WindowHelperResult> {
+async function discoverWindowWithRetry(ownerName: string, terminalPid: number): Promise<WindowHelperResult> {
   let lastError: unknown
 
   for (let attempt = 0; attempt < WINDOW_DISCOVERY_ATTEMPTS; attempt += 1) {
     try {
-      return await discoverWeztermWindow({ pid: terminalPid })
+      return await discoverTerminalWindow({ ownerName, pid: terminalPid })
     }
     catch (error) {
       lastError = error
@@ -84,6 +90,25 @@ export function createTuiStartTool(store: SessionStore) {
     async handler(args: TuiStartArgs) {
       const sessionId = randomUUID()
       const tmuxSession = `tui-pilot-${sessionId}`
+      const runtimeDependencies = await probeRuntimeDependencies()
+      const requestedBackend = parseTerminalBackendPreference(process.env.TUI_PILOT_TERMINAL_BACKEND)
+      const backendSelection = resolveTerminalBackend(runtimeDependencies, requestedBackend)
+
+      if (backendSelection.selectedBackend === null) {
+        if (requestedBackend === 'auto') {
+          throw new Error('no supported terminal backend is installed')
+        }
+
+        throw new Error(`requested terminal backend is unavailable: ${requestedBackend}`)
+      }
+
+      const terminalBackend = backendSelection.selectedBackend
+      const terminalInfo = getTerminalBackendDefinition(terminalBackend)
+      const terminalPath = getTerminalBackendPath(runtimeDependencies, terminalBackend)
+
+      if (!terminalPath) {
+        throw new Error(`selected terminal backend has no executable path: ${terminalBackend}`)
+      }
 
       await startSession({
         session: tmuxSession,
@@ -97,15 +122,15 @@ export function createTuiStartTool(store: SessionStore) {
       let window: WindowHelperResult
 
       try {
-        const terminal = launchWezterm(tmuxSession)
+        const terminal = launchTerminal(terminalBackend, tmuxSession, terminalPath)
 
         if (terminal.pid === undefined) {
-          throw new Error('wezterm launch did not provide a pid')
+          throw new Error(`${terminalInfo.binaryName} launch did not provide a pid`)
         }
 
         terminalPid = terminal.pid
         await buildWindowHelper()
-        window = await discoverWindowWithRetry(terminalPid)
+        window = await discoverWindowWithRetry(terminalInfo.ownerName, terminalPid)
         terminalPid = window.pid
       }
       catch (error) {
@@ -124,6 +149,7 @@ export function createTuiStartTool(store: SessionStore) {
         rows: args.rows,
         terminalWindowId: window.windowId,
         terminalPid: canonicalTerminalPid,
+        terminalBackend,
         windowBounds: window.bounds,
         seq: 0,
       })
@@ -137,6 +163,7 @@ export function createTuiStartTool(store: SessionStore) {
         rows: args.rows,
         terminalWindowId: window.windowId,
         terminalPid: canonicalTerminalPid,
+        terminalBackend,
         windowBounds: window.bounds,
       })
     },

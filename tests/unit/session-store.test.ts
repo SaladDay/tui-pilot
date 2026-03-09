@@ -9,6 +9,7 @@ function createRecord(overrides: Partial<{
   rows: number
   terminalWindowId: number | null
   terminalPid: number | null
+  terminalBackend: 'wezterm' | 'ghostty'
   seq: number
 }> = {}) {
   return {
@@ -20,6 +21,7 @@ function createRecord(overrides: Partial<{
     rows: 40,
     terminalWindowId: 11,
     terminalPid: 4242,
+    terminalBackend: 'wezterm' as const,
     seq: 1,
     ...overrides,
   }

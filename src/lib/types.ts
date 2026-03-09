@@ -1,3 +1,5 @@
+import type { TerminalBackend } from './env.js'
+
 export type WindowBounds = {
   x: number
   y: number
@@ -14,6 +16,7 @@ export type SessionRecord = {
   rows: number
   terminalWindowId: number | null
   terminalPid: number | null
+  terminalBackend: TerminalBackend
   windowBounds?: WindowBounds
   seq: number
 }

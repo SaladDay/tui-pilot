@@ -112,8 +112,8 @@ describe('macos window controller', () => {
     expect(execaMock).toHaveBeenCalledWith(expectedScriptPath)
   })
 
-  it('discovers the frontmost WezTerm window through the helper binary', async () => {
-    const { discoverWeztermWindow } = await import('../../src/controllers/macos-window.js')
+  it('discovers a terminal window for the requested owner through the helper binary', async () => {
+    const { discoverTerminalWindow } = await import('../../src/controllers/macos-window.js')
     const expectedHelperPath = fileURLToPath(
       new URL('../../.tui-pilot/bin/window-helper', import.meta.url),
     )
@@ -130,7 +130,7 @@ describe('macos window controller', () => {
 
     execaMock.mockResolvedValue({ stdout: helperOutput })
 
-    await expect(discoverWeztermWindow()).resolves.toEqual({
+    await expect(discoverTerminalWindow({ ownerName: 'Ghostty' })).resolves.toEqual({
       windowId: 789,
       pid: 999,
       bounds: {
@@ -141,11 +141,11 @@ describe('macos window controller', () => {
       },
     })
 
-    expect(execaMock).toHaveBeenCalledWith(expectedHelperPath, ['--owner', 'WezTerm'])
+    expect(execaMock).toHaveBeenCalledWith(expectedHelperPath, ['--owner', 'Ghostty'])
   })
 
   it('passes the launched terminal pid to the helper when discovering a window', async () => {
-    const { discoverWeztermWindow } = await import('../../src/controllers/macos-window.js')
+    const { discoverTerminalWindow } = await import('../../src/controllers/macos-window.js')
     const expectedHelperPath = fileURLToPath(
       new URL('../../.tui-pilot/bin/window-helper', import.meta.url),
     )
@@ -162,7 +162,7 @@ describe('macos window controller', () => {
 
     execaMock.mockResolvedValue({ stdout: helperOutput })
 
-    await discoverWeztermWindow({ pid: 999 })
+    await discoverTerminalWindow({ ownerName: 'WezTerm', pid: 999 })
 
     expect(execaMock).toHaveBeenCalledWith(expectedHelperPath, ['--owner', 'WezTerm', '--pid', '999'])
   })

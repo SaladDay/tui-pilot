@@ -26,7 +26,8 @@ const WindowHelperResultSchema = z.object({
 
 export type WindowBounds = z.infer<typeof WindowBoundsSchema>
 export type WindowHelperResult = z.infer<typeof WindowHelperResultSchema>
-export type DiscoverWeztermWindowOptions = {
+export type DiscoverTerminalWindowOptions = {
+  ownerName: string
   pid?: number
 }
 
@@ -62,8 +63,8 @@ export async function buildWindowHelper(): Promise<void> {
   await execa(buildWindowHelperScriptPath)
 }
 
-export async function discoverWeztermWindow(options: DiscoverWeztermWindowOptions = {}): Promise<WindowHelperResult> {
-  const args = ['--owner', 'WezTerm']
+export async function discoverTerminalWindow(options: DiscoverTerminalWindowOptions): Promise<WindowHelperResult> {
+  const args = ['--owner', options.ownerName]
 
   if (options.pid !== undefined) {
     args.push('--pid', String(options.pid))
@@ -72,6 +73,13 @@ export async function discoverWeztermWindow(options: DiscoverWeztermWindowOption
   const { stdout } = await execa(windowHelperBinaryPath, args)
 
   return parseWindowHelperOutput(stdout)
+}
+
+export async function discoverWeztermWindow(options: { pid?: number } = {}): Promise<WindowHelperResult> {
+  return discoverTerminalWindow({
+    ownerName: 'WezTerm',
+    pid: options.pid,
+  })
 }
 
 export async function captureWindow(windowId: number, outFile: string): Promise<void> {
