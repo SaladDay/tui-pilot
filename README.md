@@ -1,6 +1,16 @@
-# tui-pilot
+<p align="center">
+  <img src="docs/images/logo.png" alt="tui-pilot logo" width="180" />
+</p>
 
-`tui-pilot` is a small MCP server for driving terminal UIs through a real macOS terminal window.
+<h1 align="center">tui-pilot</h1>
+
+<p align="center">
+  An MCP server that drives terminal UIs through a real macOS terminal window.
+</p>
+
+<p align="center">
+  <img src="docs/images/hero.png" alt="AI controlling a terminal UI application" width="720" />
+</p>
 
 It starts the target app inside `tmux`, opens a detached terminal window for real rendering, captures a real PNG with macOS `screencapture`, and returns text plus the local PNG file path through MCP tools.
 
@@ -10,6 +20,32 @@ It starts the target app inside `tmux`, opens a detached terminal window for rea
 - keyboard interaction only
 - one in-memory session store per server process
 - real screenshots, not ANSI re-rendering
+
+## Architecture
+
+<p align="center">
+  <img src="docs/images/architecture.png" alt="tui-pilot architecture: MCP Server → tmux / Terminal / macOS" width="720" />
+</p>
+
+The server exposes 6 MCP tools. Under the hood it coordinates three planes:
+
+- **tmux — Control Plane**: session lifecycle, key dispatch, text capture
+- **Terminal — Render Plane**: WezTerm or Ghostty renders the actual TUI
+- **macOS — Screenshot Plane**: native window discovery and PNG capture via Swift / CoreGraphics
+
+## Workflow
+
+<p align="center">
+  <img src="docs/images/workflow.png" alt="Preflight → Launch → Snapshot ↔ Interact → Cleanup" width="720" />
+</p>
+
+1. **Preflight** — verify dependencies & permissions (`tui_doctor`)
+2. **Launch** — create a tmux session and attach a terminal window (`tui_start`)
+3. **Snapshot** — capture text + ANSI + real PNG screenshot (`tui_snapshot`)
+4. **Interact** — send keys or type text (`tui_send_keys` / `tui_type`)
+5. **Cleanup** — graceful session teardown (`tui_stop`)
+
+Steps 3 and 4 form an observe-act loop: snapshot the current state, decide on input, send it, then snapshot again.
 
 ## Requirements
 
@@ -71,12 +107,14 @@ Supported values are `auto`, `wezterm`, and `ghostty`.
 
 ## Tools
 
-- `tui_doctor`: inspect dependencies, backend selection, GUI heuristics, and manual permission checks
-- `tui_start`: start a tmux-backed session and attach a new terminal window
-- `tui_send_keys`: send named key presses such as `Down`, `Up`, `Enter`
-- `tui_type`: send literal text with `tmux send-keys -l`
-- `tui_snapshot`: capture plain text, ANSI text, and a PNG screenshot
-- `tui_stop`: stop the tmux session and forget it from the in-memory store
+| Tool | Description |
+|---|---|
+| `tui_doctor` | inspect dependencies, backend selection, GUI heuristics, and manual permission checks |
+| `tui_start` | start a tmux-backed session and attach a new terminal window |
+| `tui_send_keys` | send named key presses such as `Down`, `Up`, `Enter` |
+| `tui_type` | send literal text with `tmux send-keys -l` |
+| `tui_snapshot` | capture plain text, ANSI text, and a PNG screenshot |
+| `tui_stop` | stop the tmux session and forget it from the in-memory store |
 
 Run `tui_doctor` first if `tui_start` or `tui_snapshot` fails. It cannot verify Screen Recording permission automatically, but it will tell you which backend was selected and remind you to grant permission to the app that launched the server.
 
@@ -97,5 +135,5 @@ Screenshots and helper binaries are written under `.tui-pilot/`.
 
 ## More docs
 
-- `docs/architecture.md`
-- `docs/manual-test.md`
+- [Architecture](docs/architecture.md)
+- [Manual Testing](docs/manual-test.md)
