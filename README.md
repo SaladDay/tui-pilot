@@ -1,25 +1,29 @@
-<p align="center">
-  <img src="docs/images/logo.png" alt="tui-pilot logo" width="180" />
-</p>
-
 <h1 align="center">tui-pilot</h1>
 
 <p align="center">
-  An MCP server that drives terminal UIs through a real macOS terminal window.
+  <strong>Give your AI agent eyes and hands inside any terminal UI.</strong>
+</p>
+
+<p align="center">
+  <a href="#requirements"><img src="https://img.shields.io/badge/macOS-only-black?logo=apple&logoColor=white" alt="macOS only" /></a>
+  <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%3E%3D20.19-339933?logo=nodedotjs&logoColor=white" alt="Node.js >= 20.19" /></a>
+  <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white" alt="TypeScript strict" /></a>
+  <a href="https://modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-compatible-8A2BE2" alt="MCP compatible" /></a>
+</p>
+
+<p align="center">
+  <a href="./README_CN.md">中文文档</a>
 </p>
 
 <p align="center">
   <img src="docs/images/hero.png" alt="AI controlling a terminal UI application" width="720" />
 </p>
 
-It starts the target app inside `tmux`, opens a detached terminal window for real rendering, captures a real PNG with macOS `screencapture`, and returns text plus the local PNG file path through MCP tools.
+Think [Playwright](https://playwright.dev), but for terminal apps instead of browsers.
 
-## Current scope
+`tui-pilot` is an [MCP](https://modelcontextprotocol.io) server that lets AI agents launch, observe, and interact with real terminal applications on macOS. It runs the target app inside `tmux`, renders it in a real terminal window, captures pixel-perfect PNG screenshots via macOS native APIs, and exposes everything through a clean set of MCP tools.
 
-- macOS only
-- keyboard interaction only
-- one in-memory session store per server process
-- real screenshots, not ANSI re-rendering
+No ANSI re-rendering. No fake terminal emulation. What your agent sees is exactly what a human would see.
 
 ## Architecture
 
@@ -27,11 +31,13 @@ It starts the target app inside `tmux`, opens a detached terminal window for rea
   <img src="docs/images/architecture.png" alt="tui-pilot architecture: MCP Server → tmux / Terminal / macOS" width="720" />
 </p>
 
-The server exposes 6 MCP tools. Under the hood it coordinates three planes:
+Three planes work together under a unified MCP interface:
 
-- **tmux — Control Plane**: session lifecycle, key dispatch, text capture
-- **Terminal — Render Plane**: WezTerm or Ghostty renders the actual TUI
-- **macOS — Screenshot Plane**: native window discovery and PNG capture via Swift / CoreGraphics
+| Plane | Backed by | Responsibility |
+|---|---|---|
+| **Control** | tmux | Session lifecycle, key dispatch, text capture |
+| **Render** | WezTerm / Ghostty | Real terminal rendering with GPU acceleration |
+| **Screenshot** | Swift + CoreGraphics | Native window discovery and pixel-perfect PNG capture |
 
 ## Workflow
 
@@ -39,101 +45,116 @@ The server exposes 6 MCP tools. Under the hood it coordinates three planes:
   <img src="docs/images/workflow.png" alt="Preflight → Launch → Snapshot ↔ Interact → Cleanup" width="720" />
 </p>
 
-1. **Preflight** — verify dependencies & permissions (`tui_doctor`)
-2. **Launch** — create a tmux session and attach a terminal window (`tui_start`)
-3. **Snapshot** — capture text + ANSI + real PNG screenshot (`tui_snapshot`)
-4. **Interact** — send keys or type text (`tui_send_keys` / `tui_type`)
-5. **Cleanup** — graceful session teardown (`tui_stop`)
+| Step | Tool | What happens |
+|---|---|---|
+| **Preflight** | `tui_doctor` | Verify dependencies & permissions |
+| **Launch** | `tui_start` | Create a tmux session + attach a terminal window |
+| **Snapshot** | `tui_snapshot` | Capture plain text + ANSI text + real PNG screenshot |
+| **Interact** | `tui_send_keys` / `tui_type` | Send keystrokes or type text |
+| **Cleanup** | `tui_stop` | Graceful session teardown |
 
-Steps 3 and 4 form an observe-act loop: snapshot the current state, decide on input, send it, then snapshot again.
+Steps 3–4 form an **observe-act loop**: snapshot the current state, decide on input, send it, then snapshot again — as many times as needed.
+
+## Tools
+
+| Tool | Description |
+|---|---|
+| `tui_doctor` | Inspect dependencies, backend selection, GUI heuristics, and permission checks |
+| `tui_start` | Start a tmux-backed session and attach a new terminal window |
+| `tui_send_keys` | Send named key presses — `Down`, `Up`, `Enter`, `Escape`, etc. |
+| `tui_type` | Send literal text via `tmux send-keys -l` |
+| `tui_snapshot` | Capture plain text, ANSI text, and a PNG screenshot in one call |
+| `tui_stop` | Stop the tmux session and release all resources |
+
+> [!TIP]
+> Run `tui_doctor` first if `tui_start` or `tui_snapshot` fails. It will tell you which backend was selected and remind you to grant Screen Recording permission.
 
 ## Requirements
 
-- Node.js 20.19 or newer
-- `tmux`
-- `wezterm` or `ghostty`
-- `swiftc`
-- macOS with an active GUI session
-- Screen Recording permission for the app that launches `tui-pilot`
+- **macOS** with an active GUI session
+- **Node.js** 20.19+
+- **tmux**
+- **WezTerm** or **Ghostty**
+- **swiftc** (ships with Xcode Command Line Tools)
+- **Screen Recording** permission for the app that launches `tui-pilot`
 
-If screenshots fail with permission errors, grant Screen Recording to whichever app is spawning the server process. That may be Terminal, iTerm, or a desktop MCP client.
+> [!NOTE]
+> If screenshots fail with permission errors, grant Screen Recording to whichever app is spawning the server — Terminal, iTerm, or your MCP client.
 
-## Install
+## Getting started
 
 ```bash
+# Install dependencies
 npm install
+
+# Build the native window helper
 ./scripts/build-window-helper.sh
-```
 
-## Build and test
-
-```bash
+# Build the project
 npm run build
-npm run typecheck
-npm test
 ```
 
-## Run the MCP server locally
+## Usage
 
-For local development:
+**Development mode** (auto-reloads on save):
 
 ```bash
 npm run dev
 ```
 
-For a compiled build:
+**Production mode**:
 
 ```bash
 npm run build
 node dist/index.js
 ```
 
-The server uses stdio transport. In normal use, let your MCP client spawn `npm run dev` or `node dist/index.js` as the server command instead of trying to connect to a long-running socket endpoint.
+The server uses **stdio transport**. Point your MCP client at `npm run dev` or `node dist/index.js` as the server command — no sockets, no ports.
 
-## Backend selection
+### Backend selection
 
-`tui-pilot` auto-detects a supported render backend in this order:
+`tui-pilot` auto-detects a render backend in this order: WezTerm → Ghostty.
 
-1. WezTerm
-2. Ghostty
-
-You can override the selection with:
+Override with an environment variable:
 
 ```bash
 TUI_PILOT_TERMINAL_BACKEND=ghostty npm run dev
 ```
 
-Supported values are `auto`, `wezterm`, and `ghostty`.
+Supported values: `auto`, `wezterm`, `ghostty`.
 
-## Tools
+## Quick example
 
-| Tool | Description |
-|---|---|
-| `tui_doctor` | inspect dependencies, backend selection, GUI heuristics, and manual permission checks |
-| `tui_start` | start a tmux-backed session and attach a new terminal window |
-| `tui_send_keys` | send named key presses such as `Down`, `Up`, `Enter` |
-| `tui_type` | send literal text with `tmux send-keys -l` |
-| `tui_snapshot` | capture plain text, ANSI text, and a PNG screenshot |
-| `tui_stop` | stop the tmux session and forget it from the in-memory store |
+The repo includes `fixtures/mini-tui.ts`, a keyboard-driven menu for testing:
 
-Run `tui_doctor` first if `tui_start` or `tui_snapshot` fails. It cannot verify Screen Recording permission automatically, but it will tell you which backend was selected and remind you to grant permission to the app that launched the server.
+```
+1. tui_doctor      → confirm automaticChecksPassed is true
+2. tui_start       → launch the fixture app
+3. tui_snapshot    → read textView + inspect the PNG
+4. tui_send_keys   → send "Down"
+5. tui_snapshot    → confirm the selection moved
+6. tui_stop        → clean up
+```
 
-## Example fixture flow
+Screenshots and helper binaries live under `.tui-pilot/`.
 
-The repo includes `fixtures/mini-tui.ts`, a small keyboard-driven menu used by the integration test.
+## Testing
 
-Typical MCP flow:
+```bash
+npm test              # run all tests
+npm run typecheck     # type-check without emitting
+```
 
-1. Call `tui_doctor` and confirm `automaticChecksPassed` is `true`.
-2. Call `tui_start` with `cwd`, `command`, `cols`, and `rows`.
-3. Call `tui_snapshot` and inspect `textView` plus the local PNG path in `visual.imageArtifactId`.
-4. Call `tui_send_keys` with `Down`.
-5. Call `tui_snapshot` again and confirm the selection moved.
-6. Call `tui_stop` when done.
+## Roadmap
 
-Screenshots and helper binaries are written under `.tui-pilot/`.
+- [x] macOS support (WezTerm / Ghostty)
+- [ ] Linux support (X11 / Wayland screenshot backends)
+- [ ] Windows support (Windows Terminal + native capture)
 
-## More docs
+> [!NOTE]
+> Cross-platform support for Linux and Windows is planned. Stay tuned!
 
-- [Architecture](docs/architecture.md)
-- [Manual Testing](docs/manual-test.md)
+## Further reading
+
+- [Architecture deep-dive](docs/architecture.md)
+- [Manual testing guide](docs/manual-test.md)
