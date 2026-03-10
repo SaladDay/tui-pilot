@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - macOS desktop session
-- `tmux`, `wezterm`, and `swiftc` installed
+- `tmux`, `swiftc`, and at least one supported terminal backend installed (`wezterm` or `ghostty`)
 - Screen Recording permission granted to the app that launches the server process
 
 ## Setup commands
@@ -37,6 +37,18 @@ Do not launch the server in a separate terminal and then try to connect to it la
 
 Use any MCP client that can spawn a stdio server process. Then run this sequence.
 
+### 0. Run preflight first
+
+Call `tui_doctor` with no arguments.
+
+Confirm:
+
+- `automaticChecksPassed` is `true`
+- `backend.selected` is the terminal you expect to use
+- `manualChecksRequired` includes `screen-recording`
+
+If you want to force Ghostty or WezTerm for this session, launch the server with `TUI_PILOT_TERMINAL_BACKEND=ghostty` or `TUI_PILOT_TERMINAL_BACKEND=wezterm`.
+
 ### 1. Start the fixture
 
 Call `tui_start` with:
@@ -52,7 +64,7 @@ Call `tui_start` with:
 
 Expected result:
 
-- a new WezTerm window opens
+- a new terminal window opens
 - the window shows `Mini TUI Pilot`
 - `Alpha` starts selected
 - the tool returns a `sessionId`
@@ -72,7 +84,7 @@ Confirm:
 - `textView.plainText` contains `Alpha`, `Bravo`, and `Charlie`
 - `textView.ansiText` shows reverse-video selection for `Alpha`
 - `visual.imageArtifactId` is a local PNG path under `.tui-pilot/artifacts/`
-- the PNG looks the same as the live WezTerm window
+- the PNG looks the same as the live terminal window
 
 ### 3. Move the selection
 
@@ -89,7 +101,7 @@ Then call `tui_snapshot` again.
 
 Confirm:
 
-- the live WezTerm window now highlights `Bravo`
+- the live terminal window now highlights `Bravo`
 - the second snapshot text also shows `Bravo` selected
 - the second PNG differs from the first one
 
@@ -103,11 +115,12 @@ Call `tui_stop` with:
 }
 ```
 
-Confirm the tmux session is gone and the WezTerm window closes or becomes detached from the target session.
+Confirm the tmux session is gone and the terminal window closes or becomes detached from the target session.
 
 ## Troubleshooting
 
-- `missing required tools`: install `tmux`, `wezterm`, or `swiftc`
+- `missing required tools`: install `tmux`, `swiftc`, or one supported backend (`wezterm` / `ghostty`)
 - `operation not permitted` / `screen recording`: grant Screen Recording permission to the app that launched the server process
 - `unable to read window list`: make sure the test is running inside a real macOS GUI session
-- `no matching window found`: check that WezTerm launched and stayed open long enough to be discovered
+- `no matching window found`: check that the selected terminal backend launched and stayed open long enough to be discovered
+- `requested terminal backend is unavailable`: install that backend or unset `TUI_PILOT_TERMINAL_BACKEND`
