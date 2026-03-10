@@ -94,6 +94,86 @@ npm install
 npm run build
 ```
 
+## Install in your MCP client
+
+You can use `tui-pilot` in two ways:
+
+- **MCP only**: enough to call `tui_doctor`, `tui_start`, `tui_snapshot`, and the rest of the toolset
+- **MCP + optional skill**: recommended when your agent supports local skills and you want it to follow the visual-check workflow automatically
+
+If your client does not support skills, stop after the MCP setup. The server works fine without the skill.
+
+### 1. Register the MCP server
+
+`tui-pilot` uses stdio transport. Point your MCP client at the built server:
+
+```bash
+node /absolute/path/to/tui-pilot/dist/index.js
+```
+
+Use this instead during development if you want auto-reload:
+
+```bash
+npm run dev
+```
+
+If your client stores commands as separate fields, enter that as `npm` with args `run` and `dev` instead of one shell string.
+
+Example OpenCode config:
+
+```json
+{
+  "mcp": {
+    "tui-pilot": {
+      "type": "local",
+      "enabled": true,
+      "command": ["node", "/absolute/path/to/tui-pilot/dist/index.js"],
+      "timeout": 30000
+    }
+  }
+}
+```
+
+Example Claude Desktop config:
+
+```json
+{
+  "mcpServers": {
+    "tui-pilot": {
+      "command": "node",
+      "args": ["/absolute/path/to/tui-pilot/dist/index.js"]
+    }
+  }
+}
+```
+
+If you want to force a specific render backend for this server process, set `TUI_PILOT_TERMINAL_BACKEND` to `wezterm` or `ghostty` in your client config.
+
+### 2. Optional: install the bundled skill
+
+The repo includes a local skill at `.agents/skills/tui-pilot-visual-check`. It tells the agent to treat the live terminal window and PNG screenshot as the visual source of truth, run `tui_doctor` first, and compare snapshots before and after key presses.
+
+If your agent supports local skills, copy that folder into the client's skill directory. Example for OpenCode:
+
+```bash
+mkdir -p ~/.config/opencode/skills
+cp -R .agents/skills/tui-pilot-visual-check ~/.config/opencode/skills/
+```
+
+After you add the MCP server and optional skill, restart the MCP client or open a new session so it reloads both.
+
+### 3. Verify the installation
+
+Ask your MCP client to run `tui_doctor` with no arguments.
+
+Confirm:
+
+- `automaticChecksPassed` is `true`
+- `backend.selected` is the terminal backend you expect
+- `manualChecksRequired` includes `screen-recording`
+
+If that works, your MCP wiring is in place. `tui_doctor` does not verify Screen Recording permission automatically, so run your first live check with `tui_snapshot` as well. If you also installed the skill, ask the agent to use `tui-pilot-visual-check` for that first pass.
+
 ## Usage
 
 **Development mode** (auto-reloads on save):
