@@ -15,6 +15,7 @@ import {
   probeRuntimeDependencies,
   resolveTerminalBackend,
 } from '../lib/env.js'
+import { TuiPilotError, toTuiPilotError } from '../lib/errors.js'
 import type { SessionRecord } from '../lib/types.js'
 
 const inputSchema = z.object({
@@ -96,10 +97,14 @@ export function createTuiStartTool(store: SessionStore) {
 
       if (backendSelection.selectedBackend === null) {
         if (requestedBackend === 'auto') {
-          throw new Error('no supported terminal backend is installed')
+          throw new TuiPilotError('terminal_backend_unavailable', 'no supported terminal backend is installed', {
+            hint: 'Install WezTerm or Ghostty, or add one of them to PATH so tui-pilot can auto-detect it.',
+          })
         }
 
-        throw new Error(`requested terminal backend is unavailable: ${requestedBackend}`)
+        throw new TuiPilotError('terminal_backend_unavailable', `requested terminal backend is unavailable: ${requestedBackend}`, {
+          hint: `Install ${requestedBackend} or unset TUI_PILOT_TERMINAL_BACKEND to fall back to auto detection.`,
+        })
       }
 
       const terminalBackend = backendSelection.selectedBackend
@@ -107,16 +112,26 @@ export function createTuiStartTool(store: SessionStore) {
       const terminalPath = getTerminalBackendPath(runtimeDependencies, terminalBackend)
 
       if (!terminalPath) {
-        throw new Error(`selected terminal backend has no executable path: ${terminalBackend}`)
+        throw new TuiPilotError('terminal_executable_missing', `selected terminal backend has no executable path: ${terminalBackend}`, {
+          hint: 'Reinstall the terminal app or make sure its executable is available on PATH.',
+        })
       }
 
-      await startSession({
-        session: tmuxSession,
-        cwd: args.cwd,
-        cols: args.cols,
-        rows: args.rows,
-        command: args.command,
-      })
+      try {
+        await startSession({
+          session: tmuxSession,
+          cwd: args.cwd,
+          cols: args.cols,
+          rows: args.rows,
+          command: args.command,
+        })
+      }
+      catch (error) {
+        throw new TuiPilotError('tmux_start_failed', `failed to start tmux session ${tmuxSession}`, {
+          cause: error instanceof Error ? error : undefined,
+          hint: 'Verify tmux is installed and the cwd/command are valid.',
+        })
+      }
 
       let terminalPid: number | undefined
       let window: WindowHelperResult
@@ -125,17 +140,42 @@ export function createTuiStartTool(store: SessionStore) {
         const terminal = launchTerminal(terminalBackend, tmuxSession, terminalPath)
 
         if (terminal.pid === undefined) {
-          throw new Error(`${terminalInfo.binaryName} launch did not provide a pid`)
+          throw new TuiPilotError('terminal_launch_missing_pid', `${terminalInfo.binaryName} launch did not provide a pid`, {
+            hint: `Verify ${terminalInfo.binaryName} can open a macOS GUI window in the current user session.`,
+          })
         }
 
         terminalPid = terminal.pid
-        await buildWindowHelper()
-        window = await discoverWindowWithRetry(terminalInfo.ownerName, terminalPid)
+
+        try {
+          await buildWindowHelper()
+        }
+        catch (error) {
+          throw new TuiPilotError('window_helper_unavailable', 'failed to prepare the macOS window helper', {
+            cause: error instanceof Error ? error : undefined,
+            hint: 'Install swiftc and keep the checkout writable so tui-pilot can build the helper binary.',
+          })
+        }
+
+        try {
+          window = await discoverWindowWithRetry(terminalInfo.ownerName, terminalPid)
+        }
+        catch (error) {
+          throw new TuiPilotError('terminal_window_discovery_failed', `failed to discover the ${terminalInfo.ownerName} window for ${tmuxSession}`, {
+            cause: error instanceof Error ? error : undefined,
+            hint: 'Keep the terminal window open and confirm the launcher app has Screen Recording permission.',
+          })
+        }
+
         terminalPid = window.pid
       }
       catch (error) {
         await cleanupFailedStart(tmuxSession, terminalPid)
-        throw error
+        throw toTuiPilotError(error, {
+          code: 'tui_start_failed',
+          message: `failed to start terminal session ${tmuxSession}`,
+          hint: 'Run tui_doctor to inspect backend selection, dependencies, and GUI readiness.',
+        })
       }
 
       const canonicalTerminalPid = terminalPid ?? window.pid

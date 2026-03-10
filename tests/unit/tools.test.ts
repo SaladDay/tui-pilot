@@ -495,7 +495,18 @@ describe('buildToolList', () => {
       command: 'npm run dev',
       cols: 132,
       rows: 36,
-    })).rejects.toThrow('window not found')
+    })).rejects.toSatisfy((error: unknown) => {
+      expect(error).toMatchObject({
+        name: 'TuiPilotError',
+        code: 'terminal_window_discovery_failed',
+        hint: expect.stringContaining('Screen Recording permission'),
+      })
+
+      expect(error).toBeInstanceOf(Error)
+      expect((error as Error).message).toContain('window not found')
+
+      return true
+    })
 
     expect(mocks.killSessionMock).toHaveBeenCalledWith('tui-pilot-session-123')
   })
@@ -511,11 +522,36 @@ describe('buildToolList', () => {
       command: 'npm run dev',
       cols: 132,
       rows: 36,
-    })).rejects.toThrow('did not provide a pid')
+    })).rejects.toMatchObject({
+      name: 'TuiPilotError',
+      code: 'terminal_launch_missing_pid',
+      hint: expect.stringContaining('GUI window'),
+    })
 
     expect(mocks.buildWindowHelperMock).not.toHaveBeenCalled()
     expect(mocks.discoverTerminalWindowMock).not.toHaveBeenCalled()
     expect(mocks.killSessionMock).toHaveBeenCalledWith('tui-pilot-session-123')
+  })
+
+  it('returns a structured error when no supported terminal backend is available', async () => {
+    const tools = await importTools()
+    const startTool = getTool(tools, 'tui_start')
+
+    mocks.probeRuntimeDependenciesMock.mockResolvedValue(createDependencyProbe({
+      weztermPath: null,
+      ghosttyPath: null,
+    }))
+
+    await expect(startTool.handler({
+      cwd: '/tmp/project',
+      command: 'npm run dev',
+      cols: 132,
+      rows: 36,
+    })).rejects.toMatchObject({
+      name: 'TuiPilotError',
+      code: 'terminal_backend_unavailable',
+      hint: expect.stringContaining('Install WezTerm or Ghostty'),
+    })
   })
 
   it('uses the requested Ghostty backend when configured through the environment', async () => {
@@ -584,6 +620,49 @@ describe('buildToolList', () => {
       sessionId: 'missing-session',
       keys: ['Enter'],
     })).rejects.toThrow('unknown session: missing-session')
+  })
+
+  it('returns a structured snapshot error when the session does not exist', async () => {
+    const tools = await importTools()
+    const snapshotTool = getTool(tools, 'tui_snapshot')
+
+    await expect(snapshotTool.handler({
+      sessionId: 'missing-session',
+    })).rejects.toMatchObject({
+      name: 'TuiPilotError',
+      code: 'session_not_found',
+      hint: expect.stringContaining('tui_start'),
+    })
+  })
+
+  it('distinguishes screenshot capture failures from PNG metadata read failures', async () => {
+    const tools = await importTools()
+    const startTool = getTool(tools, 'tui_start')
+    const snapshotTool = getTool(tools, 'tui_snapshot')
+
+    const started = parseToolResult(await startTool.handler({
+      cwd: '/tmp/project',
+      command: 'npm run dev',
+      cols: 132,
+      rows: 36,
+    }))
+
+    mocks.readPngSizeMock.mockRejectedValueOnce(new Error('invalid png header'))
+
+    await expect(snapshotTool.handler({
+      sessionId: started.sessionId,
+    })).rejects.toSatisfy((error: unknown) => {
+      expect(error).toMatchObject({
+        name: 'TuiPilotError',
+        code: 'png_metadata_read_failed',
+        hint: expect.stringContaining('PNG'),
+      })
+
+      expect(error).toBeInstanceOf(Error)
+      expect((error as Error).message).toContain('invalid png header')
+
+      return true
+    })
   })
 
   it('increments the stored snapshot sequence on each capture', async () => {
