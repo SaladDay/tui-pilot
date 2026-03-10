@@ -83,41 +83,44 @@
 
 ## 快速开始
 
+### 1. 直接让 AI 帮你安装（推荐）
+
+如果你在用 Claude Code、OpenCode 或其他支持 MCP 的 agent，直接粘贴下面的 prompt。
+
+**只安装 MCP**
+
+```text
+请把 `tui-pilot` 安装到我的 MCP 客户端里。项目路径使用 `/absolute/path/to/tui-pilot`，把需要的构建步骤都跑完，注册成一个本地 stdio MCP server，然后执行一次 `tui_doctor`。不要安装可选 skill。
+```
+
+**安装 MCP + 可选 skill**
+
+```text
+请把 `tui-pilot` 安装到我的 MCP 客户端里。项目路径使用 `/absolute/path/to/tui-pilot`，把需要的构建步骤都跑完，注册成一个本地 stdio MCP server；如果我的客户端支持 skill，再帮我安装可选的本地 skill `tui-pilot-visual-check`。安装完成后执行一次 `tui_doctor`，并告诉我还有哪些步骤需要我手动确认。
+```
+
+只有在客户端支持本地 skill 时，才需要安装可选 skill。
+
+<details>
+<summary>其他安装方式</summary>
+
+### 构建 server
+
 ```bash
-# 安装依赖
 npm install
-
-# 编译原生窗口辅助工具
 ./scripts/build-window-helper.sh
-
-# 构建项目
 npm run build
 ```
 
-## 安装到你的 MCP 客户端
+### 注册 MCP server
 
-`tui-pilot` 有两种使用方式：
-
-- **只安装 MCP**：已经足够调用 `tui_doctor`、`tui_start`、`tui_snapshot` 等全部工具
-- **安装 MCP + 可选 skill**：如果你的 agent 支持本地 skill，推荐这样装，agent 会更容易按正确的视觉检查流程工作
-
-如果你的客户端不支持 skill，完成 MCP 配置后就可以直接使用，skill 不是必需项。
-
-### 1. 注册 MCP server
-
-`tui-pilot` 使用 stdio 传输。把你的 MCP 客户端指向构建后的服务即可：
+把你的 MCP 客户端指向构建后的服务：
 
 ```bash
 node /absolute/path/to/tui-pilot/dist/index.js
 ```
 
-如果你想在开发时自动重载，也可以用：
-
-```bash
-npm run dev
-```
-
-如果你的客户端把命令和参数分开存储，不要把 `npm run dev` 当成一个可执行文件填写，而是写成命令 `npm`，参数 `run` 和 `dev`。
+如果你在开发时想自动重载，也可以把客户端指向 `npm run dev`。如果客户端把命令和参数分开存储，就写成命令 `npm`，参数 `run` 和 `dev`。
 
 OpenCode 配置示例：
 
@@ -149,22 +152,20 @@ Claude Desktop 配置示例：
 
 如果你想为这个 server 进程固定渲染后端，可以在客户端配置里设置 `TUI_PILOT_TERMINAL_BACKEND`，值可选 `wezterm` 或 `ghostty`。
 
-### 2. 可选：安装仓库自带的 skill
+### 可选 skill
 
-仓库里自带了一个本地 skill：`.agents/skills/tui-pilot-visual-check`。它会提示 agent 把真实终端窗口和 PNG 截图当作视觉真相，先运行 `tui_doctor`，再对比交互前后的快照。
-
-如果你的 agent 支持本地 skill，把这个目录复制到客户端的 skill 目录即可。以 OpenCode 为例：
+仓库里自带了 `.agents/skills/tui-pilot-visual-check`。
 
 ```bash
 mkdir -p ~/.config/opencode/skills
 cp -R .agents/skills/tui-pilot-visual-check ~/.config/opencode/skills/
 ```
 
-完成 MCP 和可选 skill 配置后，重启 MCP 客户端，或新开一个会话，让它重新加载配置。
+完成配置后，重启 MCP 客户端，或新开一个会话，让它重新加载 MCP 配置和可选 skill。
 
-### 3. 验证安装结果
+### 验证安装结果
 
-让你的 MCP 客户端直接运行一次 `tui_doctor`（不带参数）。
+让客户端执行一次 `tui_doctor`（不带参数）。
 
 确认下面三点：
 
@@ -172,7 +173,9 @@ cp -R .agents/skills/tui-pilot-visual-check ~/.config/opencode/skills/
 - `backend.selected` 是你预期的终端后端
 - `manualChecksRequired` 包含 `screen-recording`
 
-如果这一步通过，说明 MCP 连接已经接好；但 `tui_doctor` 不会自动验证屏幕录制权限，所以最好再跑一次带 `tui_snapshot` 的实机检查。如果你也装了 skill，第一次检查时可以直接让 agent 使用 `tui-pilot-visual-check`。
+`tui_doctor` 不会自动验证屏幕录制权限，所以安装后最好再跑一次带 `tui_snapshot` 的实机检查。
+
+</details>
 
 ## 使用方式
 
@@ -188,8 +191,6 @@ npm run dev
 npm run build
 node dist/index.js
 ```
-
-服务器使用 **stdio 传输**。将你的 MCP 客户端指向 `npm run dev` 或 `node dist/index.js` 作为服务器命令即可——无需 socket，无需端口。
 
 ### 后端选择
 

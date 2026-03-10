@@ -83,43 +83,46 @@ Steps 3–4 form an **observe-act loop**: snapshot the current state, decide on 
 
 ## Getting started
 
+### 1. Ask your AI to install it (recommended)
+
+If you use Claude Code, OpenCode, or another MCP-aware agent, paste one of these prompts.
+
+**MCP only**
+
+```text
+Install `tui-pilot` into my MCP client. Use `/absolute/path/to/tui-pilot` as the project path, build anything that is needed, register it as a local stdio MCP server, and then run `tui_doctor`. Do not install the optional skill.
+```
+
+**MCP + optional skill**
+
+```text
+Install `tui-pilot` into my MCP client. Use `/absolute/path/to/tui-pilot` as the project path, build anything that is needed, register it as a local stdio MCP server, and also install the optional local skill `tui-pilot-visual-check` if my client supports skills. After setup, run `tui_doctor` and tell me what still needs manual approval.
+```
+
+Install the optional skill only if your client supports local skills.
+
+<details>
+<summary>Other installation options</summary>
+
+### Build the server
+
 ```bash
-# Install dependencies
 npm install
-
-# Build the native window helper
 ./scripts/build-window-helper.sh
-
-# Build the project
 npm run build
 ```
 
-## Install in your MCP client
+### Register the MCP server
 
-You can use `tui-pilot` in two ways:
-
-- **MCP only**: enough to call `tui_doctor`, `tui_start`, `tui_snapshot`, and the rest of the toolset
-- **MCP + optional skill**: recommended when your agent supports local skills and you want it to follow the visual-check workflow automatically
-
-If your client does not support skills, stop after the MCP setup. The server works fine without the skill.
-
-### 1. Register the MCP server
-
-`tui-pilot` uses stdio transport. Point your MCP client at the built server:
+Point your MCP client at the built server:
 
 ```bash
 node /absolute/path/to/tui-pilot/dist/index.js
 ```
 
-Use this instead during development if you want auto-reload:
+For development, you can point the client at `npm run dev` instead. In clients that store commands and args separately, enter that as command `npm` with args `run` and `dev`.
 
-```bash
-npm run dev
-```
-
-If your client stores commands as separate fields, enter that as `npm` with args `run` and `dev` instead of one shell string.
-
-Example OpenCode config:
+OpenCode example:
 
 ```json
 {
@@ -134,7 +137,7 @@ Example OpenCode config:
 }
 ```
 
-Example Claude Desktop config:
+Claude Desktop example:
 
 ```json
 {
@@ -147,24 +150,22 @@ Example Claude Desktop config:
 }
 ```
 
-If you want to force a specific render backend for this server process, set `TUI_PILOT_TERMINAL_BACKEND` to `wezterm` or `ghostty` in your client config.
+If you want to force a render backend for this server process, set `TUI_PILOT_TERMINAL_BACKEND` to `wezterm` or `ghostty` in your client config.
 
-### 2. Optional: install the bundled skill
+### Optional skill
 
-The repo includes a local skill at `.agents/skills/tui-pilot-visual-check`. It tells the agent to treat the live terminal window and PNG screenshot as the visual source of truth, run `tui_doctor` first, and compare snapshots before and after key presses.
-
-If your agent supports local skills, copy that folder into the client's skill directory. Example for OpenCode:
+The repo includes a local skill at `.agents/skills/tui-pilot-visual-check`.
 
 ```bash
 mkdir -p ~/.config/opencode/skills
 cp -R .agents/skills/tui-pilot-visual-check ~/.config/opencode/skills/
 ```
 
-After you add the MCP server and optional skill, restart the MCP client or open a new session so it reloads both.
+Restart the MCP client, or open a new session, so it reloads the MCP config and optional skill.
 
-### 3. Verify the installation
+### Verify the install
 
-Ask your MCP client to run `tui_doctor` with no arguments.
+Run `tui_doctor` with no arguments.
 
 Confirm:
 
@@ -172,7 +173,9 @@ Confirm:
 - `backend.selected` is the terminal backend you expect
 - `manualChecksRequired` includes `screen-recording`
 
-If that works, your MCP wiring is in place. `tui_doctor` does not verify Screen Recording permission automatically, so run your first live check with `tui_snapshot` as well. If you also installed the skill, ask the agent to use `tui-pilot-visual-check` for that first pass.
+`tui_doctor` does not verify Screen Recording permission automatically, so do one live check with `tui_snapshot` after setup.
+
+</details>
 
 ## Usage
 
@@ -188,8 +191,6 @@ npm run dev
 npm run build
 node dist/index.js
 ```
-
-The server uses **stdio transport**. Point your MCP client at `npm run dev` or `node dist/index.js` as the server command — no sockets, no ports.
 
 ### Backend selection
 
