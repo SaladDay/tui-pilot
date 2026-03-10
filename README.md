@@ -45,6 +45,14 @@ Three planes work together under a unified MCP interface:
   <img src="docs/images/workflow.png" alt="Preflight → Launch → Snapshot ↔ Interact → Cleanup" width="720" />
 </p>
 
+<p align="center">
+  <img src="docs/images/workflow-real-example.png" alt="Real-world tui-pilot session with agent reasoning on the left and the live cc-switch terminal window on the right" width="900" />
+</p>
+
+<p align="center">
+  A real session: OpenCode drives <code>cc-switch</code> through <code>tui-pilot</code>, with the agent trace on the left and the live terminal window on the right.
+</p>
+
 | Step | Tool | What happens |
 |---|---|---|
 | **Preflight** | `tui_doctor` | Verify dependencies & permissions |

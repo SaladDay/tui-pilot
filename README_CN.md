@@ -45,6 +45,14 @@
   <img src="docs/images/workflow.png" alt="预检 → 启动 → 快照 ↔ 交互 → 清理" width="720" />
 </p>
 
+<p align="center">
+  <img src="docs/images/workflow-real-example.png" alt="真实的 tui-pilot 会话，左侧是 agent 推理轨迹，右侧是 cc-switch 的实时终端窗口" width="900" />
+</p>
+
+<p align="center">
+  一个真实会话：OpenCode 通过 <code>tui-pilot</code> 驱动 <code>cc-switch</code>，左侧是 agent 轨迹，右侧是实时终端窗口。
+</p>
+
 | 步骤 | 工具 | 动作 |
 |---|---|---|
 | **预检** | `tui_doctor` | 检查依赖与权限 |
