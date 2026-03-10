@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 
 import { createSessionStore } from './state/session-store.js'
+import { createTuiDoctorTool } from './tools/tui-doctor.js'
 import { createTuiSendKeysTool } from './tools/tui-send-keys.js'
 import { createTuiSnapshotTool } from './tools/tui-snapshot.js'
 import { createTuiStartTool } from './tools/tui-start.js'
@@ -11,6 +12,7 @@ const sessionStore = createSessionStore()
 
 export function buildToolList() {
   return [
+    createTuiDoctorTool(),
     createTuiStartTool(sessionStore),
     createTuiSendKeysTool(sessionStore),
     createTuiTypeTool(sessionStore),

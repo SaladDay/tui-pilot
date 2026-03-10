@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   randomUUIDMock: vi.fn(() => 'session-123'),
   probeRuntimeDependenciesMock: vi.fn(),
+  resolveRuntimeDependenciesMock: vi.fn(),
   resolveTerminalBackendMock: vi.fn(),
   parseTerminalBackendPreferenceMock: vi.fn(),
   getTerminalBackendPathMock: vi.fn(),
@@ -88,6 +89,7 @@ vi.mock('node:fs/promises', () => ({
 
 vi.mock('../../src/lib/env.js', () => ({
   probeRuntimeDependencies: mocks.probeRuntimeDependenciesMock,
+  resolveRuntimeDependencies: mocks.resolveRuntimeDependenciesMock,
   resolveTerminalBackend: mocks.resolveTerminalBackendMock,
   parseTerminalBackendPreference: mocks.parseTerminalBackendPreferenceMock,
   getTerminalBackendPath: mocks.getTerminalBackendPathMock,
@@ -144,9 +146,41 @@ describe('buildToolList', () => {
     vi.resetModules()
     vi.spyOn(process, 'kill').mockImplementation(() => true)
     delete process.env.TUI_PILOT_TERMINAL_BACKEND
+    delete process.env.SSH_CONNECTION
+    delete process.env.SSH_TTY
 
     mocks.probeRuntimeDependenciesMock.mockReset()
     mocks.probeRuntimeDependenciesMock.mockResolvedValue(createDependencyProbe())
+    mocks.resolveRuntimeDependenciesMock.mockReset()
+    mocks.resolveRuntimeDependenciesMock.mockImplementation((probe: ReturnType<typeof createDependencyProbe>) => {
+      const missing = [
+        ['tmux', probe.tmuxPath],
+        ['screencapture', probe.screencapturePath],
+        ['swiftc', probe.swiftcPath],
+      ]
+        .filter(([, value]) => !value)
+        .map(([name]) => name)
+
+      const availableTerminalBackends: Array<'wezterm' | 'ghostty'> = []
+
+      if (probe.weztermPath) {
+        availableTerminalBackends.push('wezterm')
+      }
+
+      if (probe.ghosttyPath) {
+        availableTerminalBackends.push('ghostty')
+      }
+
+      if (availableTerminalBackends.length === 0) {
+        missing.push('terminal')
+      }
+
+      return {
+        ok: missing.length === 0,
+        missing,
+        availableTerminalBackends,
+      }
+    })
     mocks.resolveTerminalBackendMock.mockReset()
     mocks.resolveTerminalBackendMock.mockImplementation((probe: ReturnType<typeof createDependencyProbe>, requestedBackend: 'auto' | 'wezterm' | 'ghostty' = 'auto') => {
       const availableTerminalBackends: Array<'wezterm' | 'ghostty'> = []
@@ -233,16 +267,103 @@ describe('buildToolList', () => {
     vi.restoreAllMocks()
   })
 
-  it('returns the Phase 1 TUI tool names in order', async () => {
+  it('returns the Phase 2 TUI tool names in order', async () => {
     const tools = await importTools()
 
     expect(tools.map((tool) => tool.name)).toEqual([
+      'tui_doctor',
       'tui_start',
       'tui_send_keys',
       'tui_type',
       'tui_snapshot',
       'tui_stop',
     ])
+  })
+
+  it('reports dependencies, backend selection, and manual GUI hints through tui_doctor', async () => {
+    const tools = await importTools()
+    const doctorTool = getTool(tools, 'tui_doctor')
+
+    process.env.TUI_PILOT_TERMINAL_BACKEND = 'ghostty'
+    mocks.probeRuntimeDependenciesMock.mockResolvedValue(createDependencyProbe({
+      weztermPath: null,
+      ghosttyPath: '/Applications/Ghostty.app/Contents/MacOS/ghostty',
+    }))
+
+    const doctor = parseToolResult(await doctorTool.handler({}))
+
+    expect(doctor).toMatchObject({
+      automaticChecksPassed: true,
+      ok: true,
+      backend: {
+        requested: 'ghostty',
+        selected: 'ghostty',
+        available: ['ghostty'],
+        configuredValue: 'ghostty',
+        configuredValueValid: true,
+        ownerName: 'Ghostty',
+        source: 'env',
+      },
+      dependencies: {
+        tmux: { available: true },
+        wezterm: { available: false },
+        ghostty: { available: true },
+        screencapture: { available: true },
+        swiftc: { available: true },
+      },
+      environment: {
+        guiSessionLikely: true,
+        sshDetected: false,
+        screenRecordingCheck: 'manual',
+      },
+      manualChecksRequired: ['screen-recording'],
+    })
+    expect(doctor.hints).toEqual(expect.arrayContaining([
+      expect.stringContaining('Screen Recording'),
+      expect.stringContaining('Ghostty'),
+    ]))
+  })
+
+  it('marks the environment as blocked when the process is running outside a local GUI session', async () => {
+    const tools = await importTools()
+    const doctorTool = getTool(tools, 'tui_doctor')
+
+    process.env.SSH_CONNECTION = 'example'
+
+    const doctor = parseToolResult(await doctorTool.handler({}))
+
+    expect(doctor).toMatchObject({
+      automaticChecksPassed: false,
+      ok: false,
+      environment: {
+        guiSessionLikely: false,
+        sshDetected: true,
+      },
+    })
+    expect(doctor.hints).toEqual(expect.arrayContaining([
+      expect.stringContaining('SSH'),
+    ]))
+  })
+
+  it('surfaces invalid backend environment values instead of silently pretending they were valid', async () => {
+    const tools = await importTools()
+    const doctorTool = getTool(tools, 'tui_doctor')
+
+    process.env.TUI_PILOT_TERMINAL_BACKEND = 'weztrem'
+
+    const doctor = parseToolResult(await doctorTool.handler({}))
+
+    expect(doctor).toMatchObject({
+      backend: {
+        requested: 'auto',
+        source: 'env-invalid',
+        configuredValue: 'weztrem',
+        configuredValueValid: false,
+      },
+    })
+    expect(doctor.hints).toEqual(expect.arrayContaining([
+      expect.stringContaining('weztrem'),
+    ]))
   })
 
   it('starts a session with the requested dimensions and stores discovered window metadata', async () => {
